@@ -20,7 +20,8 @@ term: <short concept name, title case>
 topic: <broad subject area, title case>
 tags: [<lowercase>, <lowercase>, ...]
 confidence: <high | medium | low>
-source_context: "<one short phrase on what prompted this>"
+source_context: "<one short phrase on what prompted this in the conversation>"
+source: "<where the learning came from in the real world>"
 definition: |
   <1-4 sentences explaining the concept clearly and self-contained,
   written so it makes sense with no other context>
@@ -30,6 +31,13 @@ Rules for these blocks:
 
 - Use valid YAML. `definition` should be a block scalar (`|`) so multi-line
   text is preserved.
+- `source` and `source_context` are different fields. `source_context` is
+  what in *this conversation* prompted the card. `source` is where the user
+  actually encountered the learning out in the world — an article title or
+  URL, a podcast episode, a video, a book, or a specific conversation. If the
+  user hasn't mentioned where it came from, ask them briefly before proposing
+  the card. Leave `source` empty only if it is genuinely unknown — never
+  invent or guess a source.
 - One concept per block. If several concepts came up, propose multiple
   separate blocks.
 - `confidence` reflects how solidly the user seems to understand it, based
@@ -79,7 +87,8 @@ session," or "save this session," do the following:
    topic: <broad subject area, title case>
    tags: [<lowercase>, <lowercase>, ...]
    confidence: <high | medium | low>
-   source_context: "<one short phrase on what prompted this>"
+   source_context: "<one short phrase on what prompted this in the conversation>"
+   source: "<where the learning came from in the real world>"
    definition: |
      <confirmed definition>
    ```

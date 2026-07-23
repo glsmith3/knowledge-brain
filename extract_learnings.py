@@ -232,6 +232,7 @@ def write_card(data: dict, knowledge_dir: Path, dry_run: bool) -> str:
                 "tags": data.get("tags", []),
                 "confidence": data.get("confidence", "medium"),
                 "source_context": data.get("source_context", ""),
+                "source": data.get("source", ""),
             }
             fm_yaml = yaml.safe_dump(frontmatter, sort_keys=False, allow_unicode=True)
             body = data["definition"].strip()
