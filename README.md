@@ -6,7 +6,7 @@
 
 Knowledge Brain converts learning conversations with an AI tutor into a structured, durable knowledge base of human-approved Markdown cards.
 
-The premise: recognition isn't recall. It's easy to read widely and feel informed, but much harder to retrieve an idea later, in context, where it would actually change your thinking. Knowledge Brain attacks that gap in stages — capture what you learn in a format that lasts (v1), make it queryable (v2, planned), and practice recalling it (v3, planned).
+The premise: recognition isn't recall. It's easy to read widely and feel informed, but much harder to retrieve an idea later, in context, where it would actually change your thinking. Knowledge Brain attacks that gap in stages — capture what you learn in a format that lasts (v1), make it queryable (v2), and practice recalling it (v3, planned).
 
 It is deliberately not an automatic note-taker. Every card in the knowledge base was explained by a human, challenged by an AI tutor, and explicitly approved before being filed. The knowledge base contains only what cleared that bar.
 
@@ -26,6 +26,7 @@ The pipeline has four stages:
 2. **Recount.** Start a session with the tutor (a custom GPT running `system_prompt.md`) and explain what you learned, including where you learned it. The tutor's job is to interrogate the explanation: clarify, correct, and compress it into a candidate card — a `learned` block with a term, topic, tags, source, confidence level, and a short definition.
 3. **Approve.** You review the card and reply `yes`, `edit: ...`, or `skip`. Nothing enters the knowledge base without explicit approval. Confirmed cards are saved (currently by hand) into the `knowledge-inbox/` staging folder.
 4. **File.** Run the extractor — `python extract_learnings.py <inbox-file>` — which converts the confirmed YAML into a Markdown card with structured frontmatter, filed under `knowledge/week-of-YYYY-MM-DD/<topic>/`. Re-running on the same file is safe: identical cards are detected and reported as unchanged rather than duplicated.
+5. **Ask.** Query the knowledge base with `ask.py` — structural facts straight from the file system, or free-form questions answered from the cards with citations back to the card files. See "Asking your knowledge base" below.
 
 The output format is intentionally boring: plain Markdown files with YAML frontmatter, organized chronologically by week. Boring formats are durable, human-readable, and machine-consumable — which is what lets future layers (retrieval, quizzing) build directly on the same files without migration.
 
@@ -71,13 +72,80 @@ The card lands at `knowledge/week-of-YYYY-MM-DD/<topic>/<slug>.md` with YAML fro
 ⏸️  unchanged: knowledge/week-of-2026-07-20/software-engineering/idempotency.md
 ```
 
+## Asking your knowledge base
+
+`ask.py` is the retrieval layer. It has two modes, matched to two kinds of questions.
+
+**Structural questions get deterministic answers.** How many cards, what weeks, what topics — the file system already knows these exactly. `--index` prints them without an LLM, an API key, or a cent of cost:
+
+```bash
+python3 ask.py --index
+```
+
+```
+Knowledge Brain index
+=====================
+Cards: 4 total — 0 personal, 4 examples
+
+By week:
+  examples/  (4 card(s), undated samples)
+    - Post-Agentic AI Vocabulary
+    - Platform As A Service Vs Infrastructure As A Service
+    - Cloud Service Mesh
+    - FTC Facebook Privacy Settlement
+...
+```
+
+**Everything else gets the model.** Question mode assembles the entire knowledge base into one prompt and asks Claude, with instructions to answer only from the cards and cite the file path of every card used. It needs an [Anthropic API key](https://console.anthropic.com/) in `ANTHROPIC_API_KEY`:
+
+```bash
+python3 ask.py "what did I learn about service meshes?"
+```
+
+```
+According to your knowledge base, you learned about **Cloud Service Mesh**
+[examples/google-cloud/cloud-service-mesh.md]:
+
+- Cloud Service Mesh is a Google Cloud layer built for Kubernetes that manages
+  how microservices communicate with one another.
+- It helps handle traffic control, secure connections between services, and
+  monitoring of service-to-service activity.
+...
+```
+
+If the cards can't answer, it says so instead of improvising:
+
+```bash
+python3 ask.py "what did I learn about the French Revolution?"
+```
+
+```
+Not in the knowledge base. The closest related cards cover AI vocabulary,
+cloud computing, and tech regulation topics, but nothing on the French
+Revolution.
+```
+
+That refusal is deliberate. The tutor prompt forbids the AI from becoming the source of truth during capture; question mode enforces the same rule at retrieval. A knowledge base that quietly backfills answers from the model's general knowledge stops being a record of what you learned.
+
+One thing to know: asking a question sends your local cards to the Anthropic API; `--index` never does.
+
+## Retrieval design: why there's no vector database (yet)
+
+The obvious way to build retrieval over documents is RAG: embed the cards, store vectors, retrieve the top-k matches for each question. This repo doesn't do that, on purpose.
+
+**The knowledge base fits in one context window.** A few dozen cards is a few thousand tokens. At that scale, sending everything with every question means nothing relevant is ever left out — no retrieval step, no similarity threshold to tune, no embedding pipeline to maintain. A vector database here would be machinery the scale doesn't justify.
+
+**Full context answers questions top-k retrieval can't.** "What topics have I covered?" and "outline what I learned in July" are questions about the collection as a whole. A retriever that sees only the k most similar cards structurally can't answer them well. Full context can, and those corpus-level questions are half the point of having a knowledge base.
+
+**The seam for scaling is already there.** Card loading (`load_cards` in `ask.py`) is isolated from prompt assembly. If the base ever outgrows a comfortable context budget — roughly a few hundred cards, on the order of 100K tokens — an embedding-based retriever replaces that one function: embed cards, retrieve top-k, same citation contract. Nothing downstream changes. The seam is documented, not built, because building it now would be optimizing for a problem this knowledge base doesn't have.
+
 ## Design decisions
 
 **Recounting, not summarizing.** The human explains the concept to the AI, not the other way around. This is the whole point: explaining to a critical listener is a retention technique, so capture and rehearsal are the same act. An AI that summarized *for* you would defeat it — you'd file the words without ever engaging.
 
 **Human approval is a hard gate.** Nothing is filed until you reply `yes`. The tutor proposes; you decide. This keeps misunderstandings, half-formed ideas, and the tutor's own errors out of the durable base.
 
-**Boring, durable formats.** Cards are plain Markdown with YAML frontmatter — no database, no server, no lock-in. You can read them in any editor, grep them, and diff them in Git. This is also what lets planned layers (retrieval, quizzing) build directly on the same files with no migration.
+**Boring, durable formats.** Cards are plain Markdown with YAML frontmatter — no database, no server, no lock-in. You can read them in any editor, grep them, and diff them in Git. It's also what let the retrieval layer (v2) build directly on the same files with no migration — and what quizzing (v3) will build on next.
 
 **Selective by design.** Capture happens in bursts, only when something clears the bar. A small knowledge base of things you actually understand is the feature, not a limitation to be automated away.
 
@@ -85,9 +153,11 @@ The card lands at `knowledge/week-of-YYYY-MM-DD/<topic>/<slug>.md` with YAML fro
 
 ## Roadmap
 
-v1 (this repo) is the capture-and-file pipeline. The later layers are designed but not built — and they're the reason the output format is deliberately plain:
+v1 was the capture-and-file pipeline. v2 — retrieval — is now built: `ask.py` answers questions across the knowledge base with citations back to the specific card files, exactly as promised, with no change to the card format. That was the bet behind the deliberately plain files, and it paid off: the retrieval layer reads them directly, no migration.
 
-- **v2 — Retrieval.** Ask questions across the knowledge base and get answers with citations back to the specific card files, so a learning can resurface in context when it's relevant.
+Still ahead:
+
 - **v3 — Spaced-repetition quizzing.** Turn the same cards into recall practice on a review schedule, closing the loop from capture to long-term retention.
+- **Open design question — tutor-loop resurfacing.** Old cards surfacing during new learning sessions ("you captured something related in March"). Unresolved: how to do this without turning the tutor into a distraction machine.
 
-Both build on the existing Markdown-plus-frontmatter files. No format change required.
+Both build on the same Markdown-plus-frontmatter files. No format change required.
