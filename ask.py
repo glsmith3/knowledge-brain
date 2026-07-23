@@ -10,7 +10,8 @@ Query the knowledge base. Two modes:
 
     python3 ask.py "what did I learn about service meshes?"
         Ask a question; answered by an LLM from the cards, with citations.
-        (Question mode lands in the next step of the v2 build.)
+        Needs ANTHROPIC_API_KEY set. Sends your local cards to the
+        Anthropic API; --index never does.
 
 Cards are loaded from examples/ (public samples) and knowledge/ (personal,
 local-only). See the README retrieval section for the design rationale.
@@ -34,6 +35,36 @@ except ModuleNotFoundError:
 
 # Model used by question mode. One obvious constant, per the v2 brief.
 MODEL = "claude-sonnet-5"
+
+# Hard ceiling on the answer (thinking + text). Cheap insurance, not a tune.
+MAX_TOKENS = 16000
+
+QUESTION_INSTRUCTIONS = """\
+You answer questions about the user's personal knowledge base, "Knowledge
+Brain" — a small collection of human-approved cards, each recording one
+concept the user learned. The complete knowledge base is provided below.
+
+Rules, in order of importance:
+
+1. Answer ONLY from the cards. Never supplement from your general knowledge,
+   even when you know far more about a topic than the cards do. The cards are
+   the entire universe of facts available to you.
+2. If the knowledge base cannot answer the question, reply exactly:
+   "Not in the knowledge base." You may add one sentence naming the closest
+   related cards, but never an answer drawn from general knowledge.
+3. If the question is only partially covered, answer the covered part from
+   the cards and explicitly name what the knowledge base does not cover.
+   Do not fill the gaps.
+4. Cite the file path of every card you use, in square brackets, e.g.
+   [knowledge/week-of-2026-07-06/google-cloud/cloud-service-mesh.md].
+   Every factual claim in your answer must trace to a cited card.
+5. Questions ABOUT the collection are welcome: summaries, outlines,
+   categorizations, timelines, "what did I learn in week X". Use the card
+   metadata (week folders, dates, topics, tags) to answer them, and cite
+   the cards involved.
+
+The knowledge base:
+"""
 
 # The frontmatter fence is the FIRST pair of --- lines only. Card bodies can
 # legally contain later --- separators: extract_learnings.py appends
@@ -107,6 +138,86 @@ def dedupe_for_prompt(cards: list) -> list:
     ]
 
 
+def format_card(card: dict) -> str:
+    """Render one card for the prompt, metadata explicitly visible."""
+    meta = [
+        f"=== CARD: {card['path']} ===",
+        f"term: {card['term']}",
+        f"topic: {card['topic']}",
+    ]
+    if card["week"]:
+        meta.append(f"week: {card['week']}")
+    if card["date_learned"]:
+        meta.append(f"date_learned: {card['date_learned']}")
+    if card["tags"]:
+        meta.append(f"tags: {', '.join(card['tags'])}")
+    if card["confidence"]:
+        meta.append(f"confidence: {card['confidence']}")
+    if card["source"]:
+        meta.append(f"source: {card['source']}")
+    if card["source_context"]:
+        meta.append(f"source_context: {card['source_context']}")
+    return "\n".join(meta) + "\n\n" + card["definition"]
+
+
+def build_system_prompt(cards: list) -> str:
+    """
+    Assemble ONE prompt containing the whole (deduplicated) knowledge base.
+    At this scale, full context beats top-k retrieval: nothing relevant can
+    be omitted, and corpus-level questions see every card.
+    """
+    deduped = dedupe_for_prompt(cards)
+    return QUESTION_INSTRUCTIONS + "\n\n".join(format_card(c) for c in deduped)
+
+
+def answer_question(question: str, cards: list) -> None:
+    import os
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print(
+            "Missing API key: ANTHROPIC_API_KEY\n\n"
+            "Question mode calls the Anthropic API. Set your key first:\n"
+            "  export ANTHROPIC_API_KEY=sk-ant-...\n\n"
+            "(Get a key at https://console.anthropic.com/ — or use --index,\n"
+            "which needs no API key at all.)"
+        )
+        sys.exit(1)
+
+    try:
+        import anthropic
+    except ModuleNotFoundError:
+        print(
+            "Missing dependency: anthropic\n\n"
+            "Install it from this project directory with:\n"
+            "  python3 -m pip install -r requirements.txt\n"
+        )
+        sys.exit(1)
+
+    client = anthropic.Anthropic()
+    try:
+        response = client.messages.create(
+            model=MODEL,
+            max_tokens=MAX_TOKENS,
+            system=build_system_prompt(cards),
+            messages=[{"role": "user", "content": question}],
+        )
+    except anthropic.AuthenticationError:
+        print("The API rejected your ANTHROPIC_API_KEY. Check the key and try again.")
+        sys.exit(1)
+    except anthropic.APIConnectionError:
+        print("Could not reach the Anthropic API. Check your connection and try again.")
+        sys.exit(1)
+    except anthropic.APIStatusError as e:
+        print(f"Anthropic API error ({e.status_code}): {e.message}")
+        sys.exit(1)
+
+    answer = "\n".join(b.text for b in response.content if b.type == "text").strip()
+    if answer:
+        print(answer)
+    else:
+        print(f"(The model returned no text — stop_reason: {response.stop_reason})")
+
+
 def print_index(cards: list) -> None:
     examples = [c for c in cards if c["group"] == "example"]
     personal = [c for c in cards if c["group"] == "personal"]
@@ -177,11 +288,8 @@ def main():
         return
 
     if args.question:
-        print(
-            "Question mode is not built yet — it lands in the next step of the\n"
-            "v2 build. Use --index for structural facts about the knowledge base."
-        )
-        sys.exit(1)
+        answer_question(args.question, cards)
+        return
 
     parser.print_help()
 
