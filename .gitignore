@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Personal knowledge base stays LOCAL (Option 1 privacy model).
+# The pipeline writes real cards here; only the empty folder skeleton is
+# tracked. Public, curated samples live in examples/ instead.
+knowledge/*
+!knowledge/.gitkeep
+knowledge-inbox/*
+!knowledge-inbox/.gitkeep
+
+# Internal working docs — not part of the public portfolio repo.
+CLAUDE.md
+knowledge-brain-README-draft.md
