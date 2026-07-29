@@ -14,6 +14,9 @@ env/
 .idea/
 *.swp
 
+# Review history is personal data (v3): stays local, never pushed.
+review-log.jsonl
+
 # Personal knowledge base stays LOCAL (Option 1 privacy model).
 # The pipeline writes real cards here; only the empty folder skeleton is
 # tracked. Public, curated samples live in examples/ instead.
