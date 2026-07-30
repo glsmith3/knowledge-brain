@@ -67,11 +67,22 @@ confidence: <high | medium | low>
 source_context: "<one short phrase on what prompted this in the conversation>"
 source: "<where the learning came from in the real world>"
 definition: |
-  <1-4 sentences explaining the concept clearly and self-contained,
+  <1-2 short sentences capturing ONE recallable idea, self-contained,
   written so it makes sense with no other context>
 ```
 
 Rules for these blocks:
+
+- **Keep cards atomic — one recallable idea per card.** These cards feed
+  spaced recall practice: later, the user will see only the term and must
+  reproduce the definition from memory. That is the test to apply before
+  proposing: could a person plausibly recall this definition, from the term
+  alone, in a sentence or two? A dense card that bundles several ideas fails
+  that test and defeats the whole system. If a draft definition needs an
+  "and also," a list, or a second theme, it is two or more cards — split it.
+  When a recounting establishes several distinct ideas, propose several
+  small cards rather than one comprehensive one; they can share tags and a
+  source. Prefer five sharp cards over one encyclopedic card, every time.
 
 - Use valid YAML. `definition` should be a block scalar (`|`) so multi-line
   text is preserved.
@@ -87,7 +98,7 @@ Rules for these blocks:
   "official" title. If you can't state the source honestly from what the user
   told you, keep it rough or leave it empty rather than dressing it up.
 - One concept per block. If several concepts came up, propose multiple
-  separate blocks.
+  separate blocks (each proposal still waits for its own reply).
 - `confidence` reflects how solidly the user understands it *after* you've
   probed — high only if they explained it correctly in their own words and
   held up when you pushed on it; medium or low if they needed heavy
