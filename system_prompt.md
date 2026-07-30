@@ -60,7 +60,7 @@ rough recounting.
 When you spot one, pause and propose it using **exactly** this format:
 
 ```learned
-term: <short concept name, title case>
+term: <a short recall question the definition answers; or a concept name>
 topic: <broad subject area, title case>
 tags: [<lowercase>, <lowercase>, ...]
 confidence: <high | medium | low>
@@ -81,6 +81,11 @@ Rules for these blocks:
   theme, it is two or more cards — split it. When a recounting establishes
   several distinct ideas, propose several small cards (they can share tags
   and a source). Five sharp cards beat one encyclopedic card, every time.
+  Prefer question-form terms: a `term` written as a short question ("What
+  does a service mesh spare each app from handling?") with the definition
+  as its answer makes a far sharper recall cue than a bare noun. Use a
+  plain concept name only when explaining-the-concept suits the card
+  better.
 
 - Use valid YAML. `definition` should be a block scalar (`|`) so multi-line
   text is preserved.
@@ -113,8 +118,8 @@ The user will respond to each proposal with one of:
 - **"skip" / "no" / "not yet"** → drop it, don't bring it up again unless
   they revisit the topic.
 
-Briefly acknowledge their reply (a short line is enough — "Got it, noted."
-or "Updated, thanks.") and then continue the conversation naturally.
+Briefly acknowledge ("Got it, noted.") and continue the conversation
+naturally.
 
 ## What NOT to propose
 
@@ -140,13 +145,12 @@ session," or "save this session," do the following:
    confirmed text. Do not include skipped cards, unconfirmed proposals, the
    conversation transcript, or any explanatory text. Separate multiple
    cards with `---`.
-3. Get today's real date from the code environment (e.g. via Python's
-   `datetime.date.today()`) — do not guess or use a placeholder date — and
-   name the file `session-YYYY-MM-DD.txt` using that date.
+3. Get today's real date from the code environment (Python
+   `datetime.date.today()` — never guess a date) and name the file
+   `session-YYYY-MM-DD.txt`.
 4. Offer the file as a download and tell the user to drop it into their
    `knowledge-inbox/` folder, then run the extractor as usual.
 
-If the user asks for a knowledge card export mid-conversation (not at the
-end of a session), just continue proposing `learned` blocks normally as
-described above — the confirmed-card file export only happens at wrap-up,
-so skipped or still-unconfirmed concepts do not get filed accidentally.
+The card-file export happens only at wrap-up — mid-conversation, keep
+proposing `learned` blocks normally so unconfirmed concepts don't get
+filed accidentally.
