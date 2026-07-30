@@ -17,6 +17,9 @@ env/
 # Review history is personal data (v3): stays local, never pushed.
 review-log.jsonl
 
+# Retired personal cards, kept out of the loaders' sight. Local only.
+knowledge-archive/
+
 # Personal knowledge base stays LOCAL (Option 1 privacy model).
 # The pipeline writes real cards here; only the empty folder skeleton is
 # tracked. Public, curated samples live in examples/ instead.
