@@ -144,6 +144,18 @@ class TestCohort(unittest.TestCase):
         self.assertEqual(quiz.cohort(c), "undated")
 
 
+class TestQuizzable(unittest.TestCase):
+    def test_personal_cards_shadow_examples(self):
+        personal = card("mine")
+        example = dict(card("demo"), group="example")
+        result = quiz.quizzable([example, personal])
+        self.assertEqual([c["slug"] for c in result], ["mine"])
+
+    def test_examples_quizzable_when_no_personal_cards(self):
+        example = dict(card("demo"), group="example")
+        self.assertEqual(quiz.quizzable([example]), [example])
+
+
 class TestLogSchema(unittest.TestCase):
     def test_no_session_or_effort_fields(self):
         """The never-rebaseline rule is structural: a review record cannot

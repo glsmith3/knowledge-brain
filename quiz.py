@@ -73,9 +73,17 @@ def cohort(card: dict) -> str:
     return "undated"
 
 
+def quizzable(cards: list) -> list:
+    """examples/ cards are demo data for fresh clones: once the user has
+    any personal cards, sessions draw from those only."""
+    personal = [c for c in cards if c["group"] == "personal"]
+    return personal if personal else cards
+
+
 def active_cards(repo_root: Path) -> list:
-    """The quizzable set: all cards, example/personal duplicates removed."""
-    return ask.dedupe_for_prompt(ask.load_cards(repo_root))
+    """The quizzable set: dedupe example/personal twins, then apply the
+    personal-cards-shadow-examples rule."""
+    return quizzable(ask.dedupe_for_prompt(ask.load_cards(repo_root)))
 
 
 def load_log(log_path: Path) -> list:
