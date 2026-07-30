@@ -6,7 +6,7 @@
 
 Knowledge Brain converts learning conversations with an AI tutor into a structured, durable knowledge base of human-approved Markdown cards.
 
-The premise: recognition isn't recall. It's easy to read widely and feel informed, but much harder to retrieve an idea later, in context, where it would actually change your thinking. Knowledge Brain attacks that gap in stages — capture what you learn in a format that lasts (v1), make it queryable (v2), and practice recalling it (v3, planned).
+The premise: recognition isn't recall. It's easy to read widely and feel informed, but much harder to retrieve an idea later, in context, where it would actually change your thinking. Knowledge Brain attacks that gap in stages — capture what you learn in a format that lasts (v1), make it queryable (v2), and practice recalling it (v3).
 
 It is deliberately not an automatic note-taker. Every card in the knowledge base was explained by a human, challenged by an AI tutor, and explicitly approved before being filed. The knowledge base contains only what cleared that bar.
 
@@ -27,6 +27,7 @@ The pipeline has four stages:
 3. **Approve.** You review the card and reply `yes`, `edit: ...`, or `skip`. Nothing enters the knowledge base without explicit approval. Confirmed cards are saved (currently by hand) into the `knowledge-inbox/` staging folder.
 4. **File.** Run the extractor — `python extract_learnings.py <inbox-file>` — which converts the confirmed YAML into a Markdown card with structured frontmatter, filed under `knowledge/week-of-YYYY-MM-DD/<topic>/`. Re-running on the same file is safe: identical cards are detected and reported as unchanged rather than duplicated.
 5. **Ask.** Query the knowledge base with `ask.py` — structural facts straight from the file system, or free-form questions answered from the cards with citations back to the card files. See "Asking your knowledge base" below.
+6. **Review.** Run short recall sessions with `quiz.py` — type what you remember, get coached against your own card, and watch the mastery readout move. See "Practicing recall" below.
 
 The output format is intentionally boring: plain Markdown files with YAML frontmatter, organized chronologically by week. Boring formats are durable, human-readable, and machine-consumable — which is what lets future layers (retrieval, quizzing) build directly on the same files without migration.
 
@@ -139,13 +140,61 @@ The obvious way to build retrieval over documents is RAG: embed the cards, store
 
 **The seam for scaling is already there.** Card loading (`load_cards` in `ask.py`) is isolated from prompt assembly. If the base ever outgrows a comfortable context budget — roughly a few hundred cards, on the order of 100K tokens — an embedding-based retriever replaces that one function: embed cards, retrieve top-k, same citation contract. Nothing downstream changes. The seam is documented, not built, because building it now would be optimizing for a problem this knowledge base doesn't have.
 
+## Practicing recall
+
+`quiz.py` closes the loop. Capture writes cards; retrieval finds them; recall practice makes sure you can still *produce* what's on them from memory — because the premise of this whole repo is that recognition isn't recall. Re-reading your cards feels productive and proves nothing. Recounting them does.
+
+**Check where you stand** — anytime, no API, no cost:
+
+```bash
+python3 quiz.py --status
+```
+
+```
+Knowledge Brain — mastery
+=========================
+2026-07  [----]  0/4 solid
+  new  : Cloud Service Mesh  (due now)
+  new  : FTC Facebook Privacy Settlement  (due now)
+  new  : Platform As A Service Vs Infrastructure As A Service  (due now)
+  new  : Post-Agentic AI Vocabulary  (due now)
+
+Due now: 4 card(s)
+```
+
+Every card starts unproven — solidity is earned by recall, never assumed. Mastery is reported by month, so "am I on top of what I learned in July?" always has a two-second answer.
+
+**Run a session** with `python3 quiz.py` (or double-click `Quiz.command` on macOS). The session shows a card's term, you type what you remember, and Claude coaches you against your card:
+
+```
+--- FTC Facebook Privacy Settlement  (topic: Technology Regulation)
+    [new card, first test]
+  Type what you remember (finish with an empty line; 'q' alone to stop):
+  > In 2019 the FTC fined Facebook five billion dollars and imposed sweeping
+  > privacy-governance requirements because Facebook had violated an earlier
+  > consent order and misled users about their data controls. ...
+
+  GOT — This captures the card's core points precisely — the $5B penalty, the
+  violation of a prior consent order, misleading users about data controls,
+  and the significance of enforcement extending to ongoing corporate
+  oversight and executive accountability rather than just punishment.
+```
+
+The grading rule is strict, and it's the same rule that governs capture and retrieval: **the card is the only source of truth.** Claude grades your recount against the card's text alone — a true fact that isn't on the card earns no credit, because the quiz measures recall of what you captured, not general knowledge. Feedback coaches rather than judges: what you got, then what the card actually says.
+
+**How scheduling works.** Each card sits on a rung of a five-step ladder (3, 7, 21, 60, 120 days between reviews). Recall it and it climbs; fumble it and it drops to the bottom; cards the tutor marked high-confidence start partway up. A session asks for at most 12 cards, shakiest and most-overdue first, and anything you miss gets one more look before the session ends. There are no streaks and no daily anything — the scheduler thinks in sessions, whenever you have them, and skipping a week just makes the next session slightly longer. Reviewing more than the session asks is always offered, never expected: extra effort is welcome, but it never becomes the new baseline.
+
+**Other modes:** `--self` runs a flashcard session (recall mentally, reveal, self-grade) with no API and no key; `--month 2026-07` scopes a session to one month's cards for a focused check-up.
+
+Review history lives in `review-log.jsonl` — plain text, one line per review, local and never committed. Delete it and the system honestly forgets; read it and you know everything it knows. A graded session sends the card under review and your typed answer to the Anthropic API; `--self` and `--status` never call the API.
+
 ## Design decisions
 
 **Recounting, not summarizing.** The human explains the concept to the AI, not the other way around. This is the whole point: explaining to a critical listener is a retention technique, so capture and rehearsal are the same act. An AI that summarized *for* you would defeat it — you'd file the words without ever engaging.
 
 **Human approval is a hard gate.** Nothing is filed until you reply `yes`. The tutor proposes; you decide. This keeps misunderstandings, half-formed ideas, and the tutor's own errors out of the durable base.
 
-**Boring, durable formats.** Cards are plain Markdown with YAML frontmatter — no database, no server, no lock-in. You can read them in any editor, grep them, and diff them in Git. It's also what let the retrieval layer (v2) build directly on the same files with no migration — and what quizzing (v3) will build on next.
+**Boring, durable formats.** Cards are plain Markdown with YAML frontmatter — no database, no server, no lock-in. You can read them in any editor, grep them, and diff them in Git. It's also what let both later layers — retrieval (v2) and recall practice (v3) — build directly on the same files with no migration.
 
 **Selective by design.** Capture happens in bursts, only when something clears the bar. A small knowledge base of things you actually understand is the feature, not a limitation to be automated away.
 
@@ -153,11 +202,9 @@ The obvious way to build retrieval over documents is RAG: embed the cards, store
 
 ## Roadmap
 
-v1 was the capture-and-file pipeline. v2 — retrieval — is now built: `ask.py` answers questions across the knowledge base with citations back to the specific card files, exactly as promised, with no change to the card format. That was the bet behind the deliberately plain files, and it paid off: the retrieval layer reads them directly, no migration.
+All three planned layers are now built: capture (v1), retrieval (v2), and recall practice (v3) — each reading the same plain Markdown cards directly, with no database and no migration. That was the bet behind the deliberately boring file format, and it has now paid off twice.
 
-Still ahead:
+Still open:
 
-- **v3 — Spaced-repetition quizzing.** Turn the same cards into recall practice on a review schedule, closing the loop from capture to long-term retention.
-- **Open design question — tutor-loop resurfacing.** Old cards surfacing during new learning sessions ("you captured something related in March"). Unresolved: how to do this without turning the tutor into a distraction machine.
-
-Both build on the same Markdown-plus-frontmatter files. No format change required.
+- **A local web skin for review sessions.** `quiz.py` deliberately separates the recall engine from the terminal interface, the same seam pattern as retrieval. Whether a friendlier front end is worth building will be decided by the review log — evidence of how the terminal sessions actually get used — not by enthusiasm.
+- **Tutor-loop resurfacing.** Old cards surfacing during new learning sessions ("you captured something related in March"). Unresolved: how to do this without turning the tutor into a distraction machine.
