@@ -14,6 +14,9 @@ env/
 .idea/
 *.swp
 
+# Local secrets (API key). Never commit.
+.env
+
 # Review history is personal data (v3): stays local, never pushed.
 review-log.jsonl
 

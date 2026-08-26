@@ -24,6 +24,12 @@ from collections import defaultdict
 from pathlib import Path
 
 try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except ModuleNotFoundError:
+    pass  # .env is optional; a plain exported variable still works
+
+try:
     import yaml
 except ModuleNotFoundError:
     print(
