@@ -35,3 +35,6 @@ knowledge-inbox/*
 CLAUDE.md
 knowledge-brain-README-draft.md
 command.md
+
+# Personal Claude Code settings. Local only.
+.claude/settings.local.json
