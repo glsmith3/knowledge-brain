@@ -156,6 +156,32 @@ class TestQuizzable(unittest.TestCase):
         self.assertEqual(quiz.quizzable([example]), [example])
 
 
+class TestPractice(unittest.TestCase):
+    """Practice mode is zero-stakes: answers must never reach the log."""
+
+    def run_self_mode(self, mode):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            log_path = Path(tmp) / quiz.LOG_NAME
+            st = quiz.build_states([card("a")], [], TODAY)[0]
+            # --self flow: press Enter to reveal, then "1" = got it.
+            with patch("builtins.input", side_effect=["", "1"]), patch("builtins.print"):
+                grade = quiz.quiz_one(st, TODAY, False, log_path, mode)
+            return grade, log_path.exists()
+
+    def test_practice_answer_is_never_logged(self):
+        grade, logged = self.run_self_mode("practice")
+        self.assertEqual(grade, "got")
+        self.assertFalse(logged)
+
+    def test_normal_answer_is_still_logged(self):
+        grade, logged = self.run_self_mode("self")
+        self.assertEqual(grade, "got")
+        self.assertTrue(logged)
+
+
 class TestLogSchema(unittest.TestCase):
     def test_no_session_or_effort_fields(self):
         """The never-rebaseline rule is structural: a review record cannot

@@ -61,6 +61,7 @@ def week_folder_name(reference_date: date) -> str:
 
 def slugify(text: str) -> str:
     text = text.strip().lower()
+    text = re.sub(r"['’]", "", text)  # "Shakespeare's" -> "shakespeares", not "shakespeare-s"
     text = re.sub(r"[^a-z0-9]+", "-", text)
     return text.strip("-")
 

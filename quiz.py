@@ -12,6 +12,9 @@ Recall practice over the knowledge base — the v3 retention layer.
     python3 quiz.py --status      Mastery readout. No API.
     python3 quiz.py --month 2026-07
                                   Session scoped to one month's cards.
+    python3 quiz.py --practice    Zero-stakes practice: every card, random
+                                  order, nothing recorded. Combines with
+                                  --self and --month.
 
 Review history is appended to review-log.jsonl — local, gitignored, plain
 text, one line per review. Cards are never modified. A graded session sends
@@ -25,6 +28,7 @@ skin over the same engine; that seam is deliberate.
 
 import argparse
 import json
+import random
 import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
@@ -320,7 +324,8 @@ def quiz_one(st: dict, today: date, graded: bool, log_path: Path, mode: str):
     """Run one card. Returns the grade, or None if the user stopped."""
     card = st["card"]
     print(f"\n--- {card['term']}  (topic: {card['topic']})")
-    print(f"    [{why_line(st, today)}]")
+    label = "practice, not recorded" if mode == "practice" else why_line(st, today)
+    print(f"    [{label}]")
 
     if graded:
         recount = read_recount()
@@ -343,6 +348,9 @@ def quiz_one(st: dict, today: date, graded: bool, log_path: Path, mode: str):
         if answer == "q":
             return None
         grade = {"1": "got", "2": "partial", "3": "missed"}[answer]
+
+    if mode == "practice":
+        return grade
 
     new_rung = st["rung"] if mode == "retry" else apply_grade(st["rung"], grade)
     append_log(log_path, make_entry(card, mode, grade, new_rung, datetime.now()))
@@ -369,7 +377,7 @@ def run_session(repo_root: Path, graded: bool, month=None) -> None:
     core, spill = due[:SESSION_CARD_CAP], due[SESSION_CARD_CAP:]
     if not core:
         print("\nNothing due. Come back when the readout says otherwise —")
-        print("or practice ahead anytime with:  python3 quiz.py --month YYYY-MM")
+        print("or practice with nothing recorded:  python3 quiz.py --practice")
         return
 
     mode = "graded" if graded else "self"
@@ -418,6 +426,36 @@ def run_session(repo_root: Path, graded: bool, month=None) -> None:
                 return
 
 
+def run_practice(repo_root: Path, graded: bool, month=None) -> None:
+    """Zero-stakes practice: every card, random order, nothing recorded.
+    The review log, schedules, and mastery readout are never touched."""
+    today = date.today()
+    cards = active_cards(repo_root)
+    if not cards:
+        print("No cards found — capture something first (see the README).")
+        sys.exit(1)
+    if month is not None and not any(cohort(c) == month for c in cards):
+        months = sorted({cohort(c) for c in cards})
+        print(f"No cards in {month}. Months with cards: {', '.join(months)}")
+        sys.exit(1)
+
+    states = [s for s in build_states(cards, [], today) if in_month(s, month)]
+    random.shuffle(states)
+    print(f"Practice: {len(states)} card(s) in random order. Nothing is recorded,")
+    print("so your schedule and mastery readout won't change. Type q to stop.")
+
+    tally = {grade: 0 for grade in GRADES}
+    for st in states:
+        grade = quiz_one(st, today, graded, repo_root / LOG_NAME, "practice")
+        if grade is None:
+            break
+        tally[grade] += 1
+
+    done = sum(tally.values())
+    print(f"\nPractice over: {done} card(s) — {tally['got']} got, "
+          f"{tally['partial']} partial, {tally['missed']} missed. Not recorded.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Recall practice over your knowledge base.")
     parser.add_argument("--self", dest="self_mode", action="store_true",
@@ -426,6 +464,8 @@ def main():
                         help="Print the mastery readout and exit (no API)")
     parser.add_argument("--month", metavar="YYYY-MM",
                         help="Scope the session to one month's cards")
+    parser.add_argument("--practice", action="store_true",
+                        help="Zero-stakes practice over all cards; nothing is recorded")
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parent
@@ -436,6 +476,10 @@ def main():
             sys.exit(1)
         states = build_states(cards, load_log(repo_root / LOG_NAME), date.today())
         print_status(states, date.today())
+        return
+
+    if args.practice:
+        run_practice(repo_root, graded=not args.self_mode, month=args.month)
         return
 
     run_session(repo_root, graded=not args.self_mode, month=args.month)
